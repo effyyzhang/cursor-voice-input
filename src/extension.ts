@@ -1,38 +1,28 @@
 // At the very top of the file
-console.log("Loading Voice Input extension...");
-
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
-import { getFileTree, findFile, searchFiles } from "./utils/fileTree.js";
-import { clearCache } from "./utils/fileCache.js";
+import { getFileTree, findFile, searchFiles } from "./utils/fileTree";
+import { clearCache } from "./utils/fileCache";
+import { RepoParser } from "./utils/repoParser";
+import * as path from "path";
 
-console.log("Hello World from cursor-voice-input!");
+let repoParser: RepoParser | undefined;
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+// Make activate function async
+export async function activate(context: vscode.ExtensionContext) {
   try {
-    // Make this more visible
-    vscode.window.showInformationMessage(
-      "Voice Input extension is now active!"
-    );
     console.log("Starting Voice Input extension activation...");
 
-    // Debug: List all registered commands
-    vscode.commands.getCommands(true).then(
-      (commands) => {
-        console.log("All registered commands:", commands);
-      },
-      (error) => {
-        console.error("Failed to get commands:", error);
-      }
-    );
+    // Initialize RepoParser when workspace is available
+    if (vscode.workspace.workspaceFolders) {
+      repoParser = new RepoParser(
+        vscode.workspace.workspaceFolders[0].uri.fsPath
+      );
+      await repoParser.initialize();
+      console.log("RepoParser initialized successfully");
+    }
 
     // Register commands
-    console.log("Registering Voice Input commands...");
-
-    let fileTreeCommand = vscode.commands.registerCommand(
+    const fileTreeCommand = vscode.commands.registerCommand(
       "cursor-voice-input.getFileTree",
       async () => {
         console.log("File Tree command triggered");
@@ -49,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    let searchCommand = vscode.commands.registerCommand(
+    const searchCommand = vscode.commands.registerCommand(
       "cursor-voice-input.searchFiles",
       async () => {
         console.log("Search Files command triggered");
@@ -68,26 +58,145 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    // Add command registration confirmation
-    vscode.commands.getCommands(true).then((commands) => {
-      const ourCommands = commands.filter((cmd) =>
-        cmd.startsWith("cursor-voice-input")
-      );
-      console.log("Our registered commands:", ourCommands);
-    });
+    const testParserCommand = vscode.commands.registerCommand(
+      "cursor-voice-input.testParser",
+      async () => {
+        console.log("Testing RepoParser...");
 
-    context.subscriptions.push(fileTreeCommand, searchCommand);
-    console.log("Voice Input commands registered successfully");
+        // Check workspace
+        if (!vscode.workspace.workspaceFolders) {
+          vscode.window.showErrorMessage("No workspace folder is open");
+          return;
+        }
+
+        // Ensure RepoParser is initialized
+        if (!repoParser) {
+          try {
+            repoParser = new RepoParser(
+              vscode.workspace.workspaceFolders[0].uri.fsPath
+            );
+            await repoParser.initialize();
+          } catch (error) {
+            console.error("Failed to initialize RepoParser:", error);
+            vscode.window.showErrorMessage("Failed to initialize parser");
+            return;
+          }
+        }
+
+        const input = await vscode.window.showInputBox({
+          prompt: "Enter a message to parse",
+          placeHolder: "e.g., Show me the Button component",
+        });
+
+        if (!input) return;
+
+        try {
+          const result = repoParser.findInTranscript(input);
+
+          // Create output channel
+          const outputChannel =
+            vscode.window.createOutputChannel("Parser Test");
+          outputChannel.clear();
+          outputChannel.show();
+
+          // Show results
+          outputChannel.appendLine("Parser Test Results:");
+          outputChannel.appendLine(`Original: ${input}`);
+          outputChannel.appendLine(`Processed: ${result.updatedTranscript}`);
+
+          if (result.matches.length === 0) {
+            outputChannel.appendLine("\nNo matches found");
+            return;
+          }
+
+          // Sort and display matches
+          const sortedMatches = result.matches.sort(
+            (a, b) => b.matchScore - a.matchScore
+          );
+
+          outputChannel.appendLine("\nMatched Files:");
+          sortedMatches.forEach((match) => {
+            const relativePath = path.relative(
+              vscode.workspace.workspaceFolders![0].uri.fsPath,
+              match.path
+            );
+            outputChannel.appendLine(
+              `- ${match.type}: ${match.name} (score: ${match.matchScore.toFixed(2)})`
+            );
+            outputChannel.appendLine(`  Path: ${relativePath}`);
+          });
+
+          // Create QuickPick for file selection
+          const quickPick = vscode.window.createQuickPick();
+          quickPick.items = sortedMatches.map((match) => ({
+            label: match.name,
+            description: `${match.type} (score: ${match.matchScore.toFixed(2)})`,
+            detail: path.relative(
+              vscode.workspace.workspaceFolders![0].uri.fsPath,
+              match.path
+            ),
+          }));
+
+          quickPick.onDidChangeSelection(async ([item]) => {
+            if (item) {
+              try {
+                const fullPath = path.join(
+                  vscode.workspace.workspaceFolders![0].uri.fsPath,
+                  item.detail || ""
+                );
+                const doc = await vscode.workspace.openTextDocument(fullPath);
+                await vscode.window.showTextDocument(doc);
+              } catch (error) {
+                console.error("Error opening file:", error);
+                vscode.window.showErrorMessage(`Failed to open file: ${error}`);
+              } finally {
+                quickPick.dispose();
+              }
+            }
+          });
+
+          quickPick.onDidHide(() => quickPick.dispose());
+          quickPick.show();
+        } catch (error) {
+          console.error("Parser error:", error);
+          vscode.window.showErrorMessage(`Parser error: ${error}`);
+        }
+      }
+    );
+
+    // Register workspace change handler
+    const workspaceHandler = vscode.workspace.onDidChangeWorkspaceFolders(
+      async () => {
+        if (repoParser) {
+          repoParser.dispose();
+        }
+        if (vscode.workspace.workspaceFolders) {
+          repoParser = new RepoParser(
+            vscode.workspace.workspaceFolders[0].uri.fsPath
+          );
+          await repoParser.initialize();
+        }
+      }
+    );
+
+    // Add to subscriptions
+    context.subscriptions.push(
+      fileTreeCommand,
+      searchCommand,
+      testParserCommand,
+      workspaceHandler
+    );
+
+    console.log("Voice Input extension activated successfully");
   } catch (error) {
     console.error("Failed to activate extension:", error);
     vscode.window.showErrorMessage(`Extension activation failed: ${error}`);
   }
-
-  console.log("Voice Input extension activated successfully");
-
-  // Clear cache when workspace changes
-  vscode.workspace.onDidChangeWorkspaceFolders(() => clearCache());
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+  if (repoParser) {
+    repoParser.dispose();
+  }
+}

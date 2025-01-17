@@ -1,6 +1,17 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { updateCache, getCachedFiles, isCacheValid } from "./fileCache.js";
+import {
+  updateCache,
+  getCachedFiles,
+  isCacheValid,
+  clearCache,
+} from "./fileCache";
+
+// Add type for file tree results
+export interface FileTreeResult {
+  path: string;
+  type: "file" | "directory";
+}
 
 /**
  * Gets a list of all files in the workspace
