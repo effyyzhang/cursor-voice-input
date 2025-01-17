@@ -1,71 +1,166 @@
-# cursor-voice-input README
+## Setup Instructions
 
-This is the README for your extension "cursor-voice-input". After writing up a brief description, we recommend including the following sections.
+To get started developing Swift in VSCode, we need to configure [SweetPad](https://marketplace.visualstudio.com/items?itemName=sweetpad.sweetpad), [Trigger tasks on Save](https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.triggertaskonsave), [Swift](https://marketplace.visualstudio.com/items?itemName=sswg.swift-lang) and [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). 
 
-## Features
+If you open a Xcode project in VSCode, you will be prompted with a modal to prepare the project for Swift development with VSCode. You can also follow along with the walkthrough setup found by pressing (Cmd + Shift + P) > (Help: Welcome) or follow along by using the following instructions:
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+### 1. Install all necessary tools
+To ensure that you have all the necessary tools installed for working with SweetPad, please run the following commands to install the required software using Homebrew:
 
-For example if there is an image subfolder under your extension project workspace:
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
-\!\[feature X\]\(images/feature-x.png\)
+Then install the following tools:
+```bash
+# Install swift-format
+brew install swift-format
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+# Install XcodeGen
+brew install xcodegen
 
-## Requirements
+# Install SwiftLint
+brew install swiftlint
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+# Install xcbeautify
+brew install xcbeautify
 
-## Extension Settings
+# Install xcode-build-server
+brew install xcode-build-server
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+# Install ios-deploy
+brew install ios-deploy
 
-For example:
+# Install tuist
+brew install --cask tuist
+```
 
-This extension contributes the following settings:
+### 2. Create a `.vscode` folder
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+### 3. Add the following to `.vscode/settings.json`
+```json
+{
+    "triggerTaskOnSave.tasks": {
+        "sweetpad: build": [
+            "**/*.swift"
+        ]
+    },
+    "triggerTaskOnSave.on": true,
+    "triggerTaskOnSave.showNotifications": false,
+    "triggerTaskOnSave.restart": true,
+    "triggerTaskOnSave.delay": 1000,
+    "triggerTaskOnSave.resultIndicatorResetTimeout": 5,
+    "workbench.colorCustomizations": {},
+    "sweetpad.format.args": [
+        "--in-place",
+        "--configuration",
+        ".vscode/.swift-format",
+        "${file}"
+    ],
+    "[swift]": {
+        "editor.defaultFormatter": "sweetpad.sweetpad",
+        "editor.formatOnSave": true,
+    }
+}
+```
 
-## Known Issues
+### 4. Add the following to `.vscode/.swift-format`
+```json
+{
+    "indentation" : {
+      "spaces" : 4
+    },
+    "insertSpaces" : true,
+    "spacesAroundRangeFormationOperators" : false,
+    "tabWidth" : 8,
+    "version" : 1
+}
+```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+### 5. Add the following to `.vscode/launch.json`
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "sweetpad-lldb",
+      "request": "launch",
+      "name": "Attach to running app (SweetPad)",
+      "preLaunchTask": "sweetpad: launch"
+    }
+  ]
+}
+```
 
-## Release Notes
+### 6. Add the following to `.vscode/tasks.json`
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "sweetpad",
+            "action": "build",
+            "problemMatcher": [
+                "$sweetpad-watch",
+                "$sweetpad-xcodebuild-default",
+                "$sweetpad-xcbeautify-errors",
+                "$sweetpad-xcbeautify-warnings"
+            ],
+            "label": "sweetpad: build",
+            "detail": "Build the app",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            }
+        },
+        {
+            "type": "sweetpad",
+            "action": "launch",
+            "problemMatcher": [
+                "$sweetpad-watch",
+                "$sweetpad-xcodebuild-default",
+                "$sweetpad-xcbeautify-errors",
+                "$sweetpad-xcbeautify-warnings"
+            ],
+            "label": "sweetpad: launch",
+            "detail": "Build and Launch the app",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "type": "sweetpad",
+            "action": "clean",
+            "problemMatcher": [
+                "$sweetpad-watch",
+                "$sweetpad-xcodebuild-default",
+                "$sweetpad-xcbeautify-errors",
+                "$sweetpad-xcbeautify-warnings"
+            ],
+            "label": "sweetpad: clean",
+            "detail": "Clean the app",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        }
+    ]
+}
+```
 
-Users appreciate release notes as you update your extension.
+### 7. Generate Build Server Config for Autocompletion
+Press `Cmd + Shift + P` and run:
+```
+SweetPad: Create Build Server Config
+```
 
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+If all has gone well, you should be ready to develop Swift in VSCode!
